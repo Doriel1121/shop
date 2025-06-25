@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  # SQL Server for Categories
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: ecommerce-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourPassword123!
+      - MSSQL_PID=Express
+    ports:
+      - "14330:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    networks:
+      - ecommerce-network
+
+  # MongoDB for Orders
+  mongodb:
+    image: mongo:7.0
+    container_name: ecommerce-mongodb
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password123
+      - MONGO_INITDB_DATABASE=ecommerce_orders
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./database/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - ecommerce-network
+
+  # Categories API (.NET 8)
+  categories-api:
+    build:
+      context: ./categories-server
+      dockerfile: Dockerfile
+    container_name: ecommerce-categories-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=ECommerceDB;User Id=sa;Password=YourPassword123!;TrustServerCertificate=true;
+    ports:
+      - "5000:8080"
+    depends_on:
+      - sqlserver
+    networks:
+      - ecommerce-network
+
+  # Orders API (Node.js)
+  orders-api:
+    build:
+      context: ./orders-server
+      dockerfile: Dockerfile
+    container_name: ecommerce-orders-api
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - MONGODB_URI=mongodb://admin:password123@mongodb:27017/ecommerce_orders?authSource=admin
+      - FRONTEND_URL=http://localhost:3000
+    ports:
+      - "3001:3001"
+    depends_on:
+      - mongodb
+    networks:
+      - ecommerce-network
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: ecommerce-frontend
+    environment:
+      - REACT_APP_CATEGORIES_API_URL=http://localhost:5000/api
+      - REACT_APP_ORDERS_API_URL=http://localhost:3001/api
+    ports:
+      - "3000:3000"
+    depends_on:
+      - categories-api
+      - orders-api
+    networks:
+      - ecommerce-network
+
+volumes:
+  sqlserver_data:
+  mongodb_data:
+
+networks:
+  ecommerce-network:
+    driver: bridge
