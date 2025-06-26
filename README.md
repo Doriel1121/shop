@@ -1,6 +1,7 @@
 # הרצת כל השירותים
-docker-compose up -d
+בתוך תיקיית eccomerce הרץ:
 
+docker-compose up --build 
 # בדיקת סטטוס השירותים
 docker-compose ps
 
